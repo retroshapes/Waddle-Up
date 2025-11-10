@@ -217,11 +217,9 @@
 	function pico8_buttons_event(e, step)
 	{
 		// ================= HIER IST DIE LÖSUNG =================
-		// Prüfe, ob irgendein Modal aktiv ist. Wenn ja, ignoriere den Touch-Input für PICO-8.
-		const nameModal = document.getElementById('name-modal');
-		const rewardModal = document.getElementById('reward-modal');
-		const successModal = document.getElementById('success-modal');
-		if ((nameModal && nameModal.classList.contains('active')) || (rewardModal && rewardModal.classList.contains('active')) || (successModal && successModal.classList.contains('active'))) {
+		// Prüfe, ob das Modal aktiv ist. Wenn ja, ignoriere den Touch-Input für PICO-8.
+		const modal = document.getElementById('name-modal');
+		if (modal && modal.classList.contains('active')) {
 			return; // Beende die Funktion hier und überlasse dem Browser die Kontrolle.
 		}
 		// =======================================================
@@ -1018,7 +1016,7 @@ canvas{
 
 </head>
 
-<body style="padding:0px; margin:0px; background-color:#222; color:#ccc">
+<body style="padding:0px; margin:0px; background-color:#000; color:#ccc">
 <div id="body_0"> <!-- hide this when playing in mobile (p8_touch_detected) so that elements don't affect layout -->
 
 
@@ -1237,6 +1235,7 @@ html, body {
     z-index: 1000000;
     text-align: center;
     width: 95%;
+	max-width: 512px;
     box-sizing: border-box;
     max-height: 95vh; /* Etwas mehr Höhe erlauben */
     overflow-y: auto;
@@ -1494,25 +1493,39 @@ function generateRandomName() {
 
 // Prüft die GPIO-Pins auf Anfragen vom Spiel
 function checkGameTriggers() {
-    if (typeof pico8_gpio === 'undefined' || !pico8_gpio) return;
-    
-    const modal = document.getElementById('name-modal');
-    if (!modal || modal.classList.contains('active')) return;
+    if (typeof pico8_gpio === 'undefined' || !pico8_gpio) return;    
 
-    const triggerSubmit = pico8_gpio[GPIO_MODAL_SUBMIT];
-    const triggerLeaderboard = pico8_gpio[GPIO_MODAL_LEADERBOARD];
-    
-    if (triggerSubmit === 1) {
-        const scoreHigh = pico8_gpio[GPIO_SCORE_HIGH] || 0;
-        const scoreLow = pico8_gpio[GPIO_SCORE_LOW] || 0;
-        pendingScore = (scoreHigh * 256) + scoreLow;
-        showSubmitModal();
-        pico8_gpio[GPIO_MODAL_SUBMIT] = 0;
+    // Prüfen, ob irgendein Modal bereits aktiv ist, um Doppel-Öffnungen zu verhindern
+    const anyModalActive = document.querySelector('#name-modal.active, #reward-modal.active, #success-modal.active');
+    if (anyModalActive) return;
+
+    // Highscore-Modal-Trigger
+    if (pico8_gpio[GPIO_MODAL_SUBMIT] === 1) {
+      const scoreHigh = pico8_gpio[GPIO_SCORE_HIGH] || 0;
+      const scoreLow = pico8_gpio[GPIO_SCORE_LOW] || 0;
+      pendingScore = (scoreHigh * 256) + scoreLow;
+      showSubmitModal();
+      pico8_gpio[GPIO_MODAL_SUBMIT] = 0; // Trigger zurücksetzen
+      return; // Nur eine Aktion pro Zyklus
     }
     
-    if (triggerLeaderboard === 1) {
-        showLeaderboardModal();
-        pico8_gpio[GPIO_MODAL_LEADERBOARD] = 0;
+    if (pico8_gpio[GPIO_MODAL_LEADERBOARD] === 1) {
+      showLeaderboardModal();
+      pico8_gpio[GPIO_MODAL_LEADERBOARD] = 0; // Trigger zurücksetzen
+      return;
+    }
+
+    // Reward-Modal-Trigger
+    const triggerReward = pico8_gpio[GPIO_REWARD_TRIGGER];
+    if (triggerReward >= 1 && triggerReward <= 3) {
+        // Prüfen, ob die Funktion aus dem anderen Skript existiert
+        if (typeof showRewardModal === 'function') {
+            pendingRewardTier = triggerReward;
+            pendingCoinsToDeduct = pico8_gpio[GPIO_COINS_TO_DEDUCT] || 0;
+            showRewardModal(triggerReward);
+            pico8_gpio[GPIO_REWARD_TRIGGER] = 0; // Trigger zurücksetzen
+            pico8_gpio[GPIO_COINS_TO_DEDUCT] = 0;
+        }
     }
 }
 
