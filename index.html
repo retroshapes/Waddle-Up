@@ -1520,12 +1520,13 @@ function checkGameTriggers() {
     // Reward-Modal-Trigger
     const triggerReward = pico8_gpio[GPIO_REWARD_TRIGGER];
     if (triggerReward >= 1 && triggerReward <= 3) {
-        // Prüfen, ob die Funktion aus dem anderen Skript existiert
-        if (typeof showRewardModal === 'function') {
-            pendingRewardTier = triggerReward;
-            pendingCoinsToDeduct = pico8_gpio[GPIO_COINS_TO_DEDUCT] || 0;
-            showRewardModal(triggerReward);
-            pico8_gpio[GPIO_REWARD_TRIGGER] = 0; // Trigger zurücksetzen
+        // Sende eine Nachricht an die Hauptseite, um das Modal zu öffnen.
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'SHOW_REWARD_MODAL',
+                tier: triggerReward
+            }, '*'); // In Produktion auf 'https://retroshapes.com' ändern
+            pico8_gpio[GPIO_REWARD_TRIGGER] = 0; // Trigger sofort zurücksetzen
             pico8_gpio[GPIO_COINS_TO_DEDUCT] = 0;
         }
     }
