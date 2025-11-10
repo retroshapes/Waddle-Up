@@ -1181,49 +1181,6 @@ canvas{
             LOADING...
         </div>
     </div>
-</div><!-- /name-modal -->
-
-<!-- Reward Modal - Email Input -->
-<div id="reward-modal">
-    <div class="close-button" onclick="closeRewardModal()">×</div>
-    <h2>CLAIM YOUR DISCOUNT</h2>
-    <p id="reward-amount" style="color:#ffec27; font-size:1.8rem; margin:1rem 0;">5€ OFF</p>
-    <p style="color:#29adff; font-size:1rem; margin-bottom:1.5rem;">Enter your email to receive your discount code</p>
-
-    <div class="input-container">
-        <input
-            type="email"
-            id="reward-email"
-            placeholder="your@email.com"
-            maxlength="100">
-    </div>
-
-    <button class="claim-button" onclick="claimReward()">CLAIM REWARD</button>
-
-    <p class="privacy-notice">
-        By claiming, you agree to our
-        <a href="https://retroshapes.com/policies/privacy-policy" target="_blank">Privacy Policy</a>.
-    </p>
-</div>
-
-<!-- Success Modal - Display Discount Code -->
-<div id="success-modal">
-    <div class="close-button" onclick="closeSuccessModal()">×</div>
-    <h2 style="color:#09ff00;">SUCCESS!</h2>
-    <p style="color:#fff; margin:1rem 0;">Your discount code has been sent to:</p>
-    <p id="success-email" style="color:#ffec27; font-size:1.1rem; margin:0.5rem 0;"></p>
-
-    <div style="background:#1a1a1a; border:2px solid #29adff; padding:1.5rem; margin:1.5rem 0; border-radius:4px;">
-        <p style="color:#29adff; font-size:0.9rem; margin-bottom:0.5rem;">YOUR CODE:</p>
-        <p id="discount-code" style="color:#ffec27; font-size:2rem; font-weight:bold; letter-spacing:3px; margin:0;"></p>
-    </div>
-
-    <p style="color:#5f574f; font-size:0.9rem; margin-top:1rem;">
-        Use this code at checkout on retroshapes.com
-    </p>
-
-    <button class="claim-button" onclick="closeSuccessModal()" style="margin-top:1.5rem;">CONTINUE</button>
-</div>
 
 <style>
 /* Prevent zoom and scrolling */
@@ -1440,93 +1397,6 @@ a[href*="highscore"]:active {
     box-shadow: 2px 2px 0px 0px #000 !important;
 }
 
-/* ============================================ */
-/* REWARD MODALS */
-/* ============================================ */
-
-#reward-modal, #success-modal {
-    display: none;
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: #000;
-    border: 3px solid #fff;
-    padding: 2rem;
-    z-index: 1000000;
-    text-align: center;
-    width: 95%;
-    max-width: 450px;
-    box-sizing: border-box;
-    max-height: 95vh;
-    overflow-y: auto;
-    font-family: 'Tiny5', monospace !important;
-    letter-spacing: 1px;
-}
-
-#reward-modal.active, #success-modal.active {
-    display: block !important;
-}
-
-#reward-modal h2, #success-modal h2 {
-    color: #ff1c59;
-    margin: 0 0 1rem 0;
-    font-size: 1.8rem;
-    letter-spacing: 2px;
-}
-
-#reward-modal .input-container {
-    margin: 1.5rem 0;
-}
-
-#reward-modal input[type="email"] {
-    width: 100%;
-    padding: 0.8rem;
-    font-size: 1rem;
-    font-family: 'Tiny5', monospace;
-    background: #1a1a1a;
-    border: 2px solid #29adff;
-    color: #fff;
-    text-align: center;
-    letter-spacing: 1px;
-    box-sizing: border-box;
-}
-
-#reward-modal input[type="email"]:focus {
-    outline: none;
-    border-color: #ffec27;
-    background: #0d0d0d;
-}
-
-.claim-button {
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.2rem;
-    font-family: 'Tiny5', monospace;
-    background: #09ff00;
-    border: 3px solid #fff;
-    color: #000;
-    cursor: pointer;
-    letter-spacing: 2px;
-    font-weight: bold;
-    margin-top: 1rem;
-    transition: all 0.2s;
-}
-
-.claim-button:hover {
-    background: #00cc00;
-    transform: translateY(-2px);
-}
-
-.claim-button:active {
-    transform: translateY(2px);
-}
-
-.claim-button:disabled {
-    background: #5f574f;
-    color: #1a1a1a;
-    cursor: not-allowed;
-}
-
 </style>
 
 <script>
@@ -1589,17 +1459,25 @@ let isLoadingMore = false;
 let lastVisibleDoc = null; // Speichert den letzten Score für die nächste Abfrage
 let allScoresLoaded = false;
 
-// Reward System Variables
-let pendingRewardTier = 0;  // 1=5EUR, 2=10EUR, 3=20EUR
-let pendingCoinsToDeduct = 0;
-
 console.log('🎮 Game Bridge initialisiert und wartet auf Spielstart...');
 
 // Diese Funktion wird erst aufgerufen, wenn PICO-8 garantiert läuft.
 function initializeGameBridge() {
     console.log('✅ PICO-8 ist gestartet. Bridge wird aktiviert.');
     setInterval(checkGameTriggers, 100);
-    Erzeugt einen zufälligen, thematisch passenden Namen mit einer Zahl
+    setInterval(checkModalControls, 50);
+}
+
+// Erweitere die p8_run_cart Funktion, um den Start der Bridge zu steuern
+if (typeof p8_run_cart === 'function') {
+    const original_p8_run_cart = p8_run_cart;
+    p8_run_cart = function() {
+        original_p8_run_cart.apply(this, arguments);
+        initializeGameBridge();
+    };
+}
+
+	// Erzeugt einen zufälligen, thematisch passenden Namen mit einer Zahl
 function generateRandomName() {
     const ADJECTIVES = ["Pixel", "Cosmic", "Robo", "Neon", "Data", "Retro", "Astro", "Turbo", "Ghostly", "Quantum"];
     const NOUNS = ["Jumper", "Pilot", "Wizard", "Knight", "Ranger", "Bot", "Ghost", "Explorer", "Ninja", "Surfer"];
@@ -1617,43 +1495,40 @@ function generateRandomName() {
 
 // Prüft die GPIO-Pins auf Anfragen vom Spiel
 function checkGameTriggers() {
-    if (typeof pico8_gpio === 'undefined' || !pico8_gpio) return;
+    if (typeof pico8_gpio === 'undefined' || !pico8_gpio) return;    
 
-    const modal = document.getElementById('name-modal');
-    const rewardModal = document.getElementById('reward-modal');
-    const successModal = document.getElementById('success-modal');
+    // Prüfen, ob irgendein Modal bereits aktiv ist, um Doppel-Öffnungen zu verhindern
+    const anyModalActive = document.querySelector('#name-modal.active, #reward-modal.active, #success-modal.active');
+    if (anyModalActive) return;
 
-    // Don't check if any modal is active
-    if ((modal && modal.classList.contains('active')) ||
-        (rewardModal && rewardModal.classList.contains('active')) ||
-        (successModal && successModal.classList.contains('active'))) {
-        return;
+    // Highscore-Modal-Trigger
+    if (pico8_gpio[GPIO_MODAL_SUBMIT] === 1) {
+      const scoreHigh = pico8_gpio[GPIO_SCORE_HIGH] || 0;
+      const scoreLow = pico8_gpio[GPIO_SCORE_LOW] || 0;
+      pendingScore = (scoreHigh * 256) + scoreLow;
+      showSubmitModal();
+      pico8_gpio[GPIO_MODAL_SUBMIT] = 0; // Trigger zurücksetzen
+      return; // Nur eine Aktion pro Zyklus
+    }
+    
+    if (pico8_gpio[GPIO_MODAL_LEADERBOARD] === 1) {
+      showLeaderboardModal();
+      pico8_gpio[GPIO_MODAL_LEADERBOARD] = 0; // Trigger zurücksetzen
+      return;
     }
 
-    const triggerSubmit = pico8_gpio[GPIO_MODAL_SUBMIT];
-    const triggerLeaderboard = pico8_gpio[GPIO_MODAL_LEADERBOARD];
+    // Reward-Modal-Trigger
     const triggerReward = pico8_gpio[GPIO_REWARD_TRIGGER];
-
-    if (triggerSubmit === 1) {
-        const scoreHigh = pico8_gpio[GPIO_SCORE_HIGH] || 0;
-        const scoreLow = pico8_gpio[GPIO_SCORE_LOW] || 0;
-        pendingScore = (scoreHigh * 256) + scoreLow;
-        showSubmitModal();
-        pico8_gpio[GPIO_MODAL_SUBMIT] = 0;
-    }
-
-    if (triggerLeaderboard === 1) {
-        showLeaderboardModal();
-        pico8_gpio[GPIO_MODAL_LEADERBOARD] = 0;
-    }
-
-    // NEW: Reward System
     if (triggerReward >= 1 && triggerReward <= 3) {
-        pendingRewardTier = triggerReward;
-        pendingCoinsToDeduct = pico8_gpio[GPIO_COINS_TO_DEDUCT] || 0;
-        showRewardModal(triggerReward);
-        pico8_gpio[GPIO_REWARD_TRIGGER] = 0;
-        pico8_gpio[GPIO_COINS_TO_DEDUCT] = 0;
+        // Sende eine Nachricht an die Hauptseite, um das Modal zu öffnen.
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'SHOW_REWARD_MODAL',
+                tier: triggerReward
+            }, '*'); // In Produktion auf 'https://retroshapes.com' ändern
+            pico8_gpio[GPIO_REWARD_TRIGGER] = 0; // Trigger sofort zurücksetzen
+            pico8_gpio[GPIO_COINS_TO_DEDUCT] = 0;
+        }
     }
 }
 
@@ -1943,30 +1818,3 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
