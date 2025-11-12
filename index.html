@@ -1568,14 +1568,16 @@ function showSubmitModal() {
     document.getElementById('highscore-view').style.display = 'none';
     openModal();
     const nameInput = document.getElementById('player-name');
-    
+
     // NEU: Generiere sofort einen Namen und fülle ihn ein
     nameInput.value = generateRandomName();
-    nameInput.select(); // Markiere den Text, damit User ihn leicht ersetzen kann
-    
-    if (!/Mobi|Android/i.test(navigator.userAgent)) {
-       setTimeout(() => nameInput.focus(), 100);
-    }
+
+    // MOBIL-FIX: Fokussiere und wähle den Text automatisch aus
+    // Timeout gibt dem Modal Zeit sich zu öffnen und funktioniert auf Desktop & Mobile
+    setTimeout(() => {
+        nameInput.focus();
+        nameInput.select();
+    }, 300);
 }
 
 function showLeaderboardModal() {
@@ -1818,4 +1820,3 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
-
