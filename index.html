@@ -1011,6 +1011,61 @@ canvas{
 	fill:none;
 }
 
+	/* --- HIGHSCORE TABS IM MODAL --- */
+.modal-tabs-container {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.modal-tab {
+    background-color: #1d2b53;
+    color: #fff;
+    border: 2px solid #5f574f;
+    padding: 6px 8px;
+    cursor: pointer;
+    font-family: 'Tiny5', monospace;
+    font-size: 1rem;
+    text-transform: uppercase;
+    transition: all 0.1s;
+    letter-spacing: 1px;
+}
+
+.modal-tab:hover {
+    background-color: #29adff;
+    color: #000;
+    border-color: #fff;
+}
+
+.modal-tab.active {
+    background-color: #ffec27;
+    color: #000;
+    border-color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+}
+
+/* Spezieller Style für den Contest Tab */
+.modal-tab[data-filter="contest"] {
+    border-color: #ff004d;
+    color: #ff004d;
+}
+
+.modal-tab[data-filter="contest"].active {
+    background-color: #ff004d;
+    color: #fff;
+    border-color: #fff;
+}
+
+/* Highscore Liste Anpassung für Tabs */
+#highscore-list {
+    max-height: 40vh; /* Etwas kleiner, damit Tabs Platz haben */
+    overflow-y: auto;
+    border-top: 2px solid #5f574f;
+    padding-top: 10px;
+}
 -->
 </STYLE>
 
@@ -1174,15 +1229,36 @@ canvas{
     
     <div id="highscore-view" style="display:none;">
         <div class="close-button" onclick="hideModal()">×</div>
-        <h2 style="color:#ffec27; margin:0 0 1.5rem 0; font-size:1.5rem; letter-spacing:2px;">
-            ★ HIGHSCORES ★
-        </h2>
         
-        <div id="highscore-list" style="display:none; max-height:100%; overflow-y:auto;">
+        <h2 style="color:#ffec27; margin:0 0 1rem 0; font-size:1.5rem; letter-spacing:2px;">
+            ★ LEADERBOARD ★
+        </h2>
+
+        <div class="modal-tabs-container">
+            <button class="modal-tab" data-filter="contest" onclick="switchModalTab('contest')">
+                🎄 XMAS
+            </button>
+            <button class="modal-tab" data-filter="all-time" onclick="switchModalTab('all-time')">
+                ALL TIME
+            </button>
+            <button class="modal-tab" data-filter="today" onclick="switchModalTab('today')">
+                TODAY
+            </button>
+        </div>
+        
+        <div id="highscore-list" style="display:none;">
             </div>
 
         <div id="highscore-loading" style="text-align:center; color:#29adff; padding:2rem; min-height:50px; font-size:0.9rem;">
             LOADING...
+        </div>
+
+        <div style="text-align:center; margin-top:1rem; padding-top:0.5rem; border-top:1px solid #5f574f;">
+            <a href="https://retroshapes.com/pages/pixel-jump-highscore" 
+               target="_blank"
+               style="color:#29adff; text-decoration:none; font-size:0.9rem; font-family:'Tiny5', monospace; letter-spacing:1px;">
+               View Full Screen ⬈
+            </a>
         </div>
     </div>
 
@@ -1698,86 +1774,133 @@ window.submitCurrentScore = async function() {
 };
 	
 window.skipSubmit = function() { hideModal(); };
-// Initialisiert den Highscore-View und lädt die ersten Einträge
-// Zeigt die Top 15 Scores und einen Link zur vollständigen Liste
-// Zeigt die Top 15 Scores und einen Link zur vollständigen Liste
-window.showHighscores = async function() {
+// --- NEUE HIGHSCORE LOGIK FÜR DAS MODAL ---
+
+let currentModalFilter = 'contest';
+
+// Diese Funktion wird vom Button "SHOW HIGHSCORES" oder GPIO aufgerufen
+window.showHighscores = function() {
     openModal();
     document.getElementById('game-over-view').style.display = 'none';
     document.getElementById('highscore-view').style.display = 'block';
     
-    const listEl = document.getElementById('highscore-list');
-    listEl.innerHTML = '';
-    inHighscoreView = true;
-    
-    // Lade nur die Top 15
-    await loadTop15Highscores();
+    // Standardmäßig immer den Contest-Tab öffnen
+    switchModalTab('contest');
 };
 
-// Lädt nur die Top 15 Scores
-async function loadTop15Highscores() {
+// Wechselt den Tab und lädt Daten neu
+window.switchModalTab = function(filter) {
+    currentModalFilter = filter;
+    
+    // UI: Buttons aktualisieren
+    document.querySelectorAll('.modal-tab').forEach(btn => {
+        btn.classList.remove('active');
+        if(btn.dataset.filter === filter) btn.classList.add('active');
+    });
+
+    // UI: Liste leeren & Laden anzeigen
+    const listEl = document.getElementById('highscore-list');
     const loadingEl = document.getElementById('highscore-loading');
+    
+    listEl.innerHTML = '';
+    listEl.style.display = 'none';
     loadingEl.style.display = 'block';
     loadingEl.textContent = 'LOADING...';
 
+    // Daten abrufen
+    fetchModalHighscores(filter);
+};
+
+// Lädt Daten aus Firestore (Logik 1:1 von der Hauptseite übernommen)
+async function fetchModalHighscores(filter) {
     try {
-        if (typeof getHighscoresPaged === 'function') {
-            const result = await getHighscoresPaged(15, null);
-            displayTop15Scores(result.scores);
-        } else {
-            console.error("Funktion getHighscoresPaged ist nicht definiert!");
-            loadingEl.innerHTML = '<span style="color:#ff1c59;">CONFIG ERROR</span>';
+        if (!firebase.apps.length) {
+             console.error("Firebase not initialized");
+             return;
         }
+        const db = firebase.firestore();
+        let query = db.collection('highscores');
+
+        // --- FILTER LOGIK ---
+        if (filter === 'contest') {
+            // XMAS CONTEST ZEITRAUM: 01.12.2025 00:00 bis 05.12.2025 18:00
+            const start = new Date('2025-12-01T00:00:00+01:00').getTime();
+            const end = new Date('2025-12-05T18:00:00+01:00').getTime();
+            
+            query = query.where('timestamp', '>=', start)
+                         .where('timestamp', '<=', end);
+        } 
+        else if (filter === 'today') {
+            const today = new Date(); 
+            today.setHours(0, 0, 0, 0);
+            query = query.where('timestamp', '>=', today.getTime());
+        }
+        else {
+            // All Time -> Standard Sortierung nach Score
+            query = query.orderBy('score', 'desc');
+        }
+
+        // Limitierung (Kein Infinite Scroll im Modal)
+        // Bei Zeit-Filtern laden wir mehr (z.B. 50) und sortieren im Browser,
+        // da Firestore keine Sortierung nach Score erlaubt, wenn nach Zeit gefiltert wird.
+        const limit = filter === 'all-time' ? 20 : 50;
+        query = query.limit(limit);
+
+        const snapshot = await query.get();
+        let scores = [];
+
+        snapshot.forEach(doc => {
+            scores.push(doc.data());
+        });
+
+        // Client-seitige Sortierung für Zeit-Filter (Contest/Today)
+        if (filter !== 'all-time') {
+            scores.sort((a, b) => b.score - a.score);
+        }
+        
+        // Auf Top 15 beschneiden für das Modal
+        scores = scores.slice(0, 15);
+
+        renderModalScores(scores, filter);
+
     } catch (error) {
-        console.error('Failed to load highscores:', error);
-        loadingEl.innerHTML = '<span style="color:#ff1c59;">LOAD FAILED</span>';
-    } finally {
-        loadingEl.style.display = 'none';
+        console.error("Error loading modal scores:", error);
+        document.getElementById('highscore-loading').innerHTML = '<span style="color:#ff004d">LOAD FAILED</span>';
     }
 }
 
-// Zeigt die Top 15 Scores mit Rängen und Link zur vollständigen Liste
-function displayTop15Scores(scores) {
+// Rendert die Liste ins HTML
+function renderModalScores(scores, filter) {
     const listEl = document.getElementById('highscore-list');
+    const loadingEl = document.getElementById('highscore-loading');
+    
+    loadingEl.style.display = 'none';
     listEl.style.display = 'block';
 
     if (scores.length === 0) {
-        document.getElementById('highscore-loading').textContent = "NO SCORES YET";
+        if (filter === 'contest') {
+             listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:#fff; line-height:1.5;">🎄 CONTEST IS LIVE!<br>BE THE FIRST!</div>';
+        } else {
+             listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:#fff;">NO SCORES YET</div>';
+        }
         return;
     }
-    
+
     let html = '';
     scores.forEach((entry, index) => {
         const rank = index + 1;
-        const rankDisplay = `#${rank}`;
         const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+        const rowClass = rank <= 3 ? 'top-3' : '';
         
         html += `
-            <div class="highscore-entry ${rank <= 3 ? 'top-3' : ''}">
-                <span class="highscore-rank">${medal} ${rankDisplay}</span>
+            <div class="highscore-entry ${rowClass}">
+                <span class="highscore-rank">${medal} #${rank}</span>
                 <span class="highscore-name">${escapeHtml(entry.name).toUpperCase()}</span>
-                <span class="highscore-score">${entry.score}</span>
+                <span class="highscore-score">${entry.score.toLocaleString()}</span>
             </div>
         `;
     });
-    
-    // Füge Link zur vollständigen Highscore-Seite hinzu
-    html += `
-        <div style="text-align:center; margin-top:2rem; padding:1rem 0; border-top:2px solid #5f574f;">
-            <a href="https://retroshapes.com/pages/pixel-jump-highscore" 
-               target="_blank"
-               style="display:inline-block; background:#29adff; color:#000; 
-                      padding:0.75rem 1.5rem; border:3px solid #000; 
-                      font-size:1.25rem; letter-spacing:1px; text-decoration:none;
-                      box-shadow:4px 4px 0px 0px #000; transition:all 0.1s;">
-                🏆 VIEW ALL HIGHSCORES
-            </a>
-            <p style="color:#5f574f; font-size:0.9rem; margin-top:1rem;">
-                SEE THE COMPLETE LEADERBOARD
-            </p>
-        </div>
-    `;
-    
+
     listEl.innerHTML = html;
 }
 
@@ -1822,5 +1945,6 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
+
 
 
