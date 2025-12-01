@@ -1066,6 +1066,41 @@ canvas{
     border-top: 2px solid #5f574f;
     padding-top: 10px;
 }
+
+	/* --- BUTTON & VALIDIERUNG STYLES --- */
+
+.menu-container { 
+    margin-top: 1.5rem; 
+    text-align: center !important; /* ZENTRIERT */
+    display: flex;
+    justify-content: center;
+}
+
+/* Der grüne Button */
+.menu-item.save-btn {
+    color: #00e436; /* PICO-8 Grün */
+    font-weight: bold;
+    font-size: 1.4rem; /* Etwas größer */
+}
+
+.menu-item.save-btn:hover {
+    color: #fff; /* Weiß beim Hover */
+    text-shadow: 0 0 5px #00e436;
+}
+
+/* Fehler-Animation (Wackeln & Rot) */
+.error-shake {
+    animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    border-color: #ff004d !important; /* PICO-8 Rot */
+    color: #ff004d !important;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
 -->
 </STYLE>
 
@@ -1216,7 +1251,7 @@ canvas{
     </div>
     
     <div class="menu-container">
-        <div class="menu-item" data-index="0" onclick="submitCurrentScore()">
+        <div class="menu-item save-btn" data-index="0" onclick="submitCurrentScore()">
             <span class="menu-cursor">▶</span> SAVE SCORE
         </div>
     </div>
@@ -1724,7 +1759,22 @@ function selectMenuItem() {
 window.submitCurrentScore = async function() {
     const nameInput = document.getElementById('player-name');
     const playerName = nameInput.value.trim();
-    const saveItem = document.querySelectorAll('.menu-item')[0];
+    // Wir holen den Button genauer über die Klasse, damit wir den Text ändern können
+    const saveItem = document.querySelector('.menu-item.save-btn');
+    
+    // --- VALIDIERUNG: KEIN LEERER NAME ---
+    if (!playerName) {
+        // Füge Wackel-Animation hinzu
+        nameInput.classList.add('error-shake');
+        
+        // Entferne Animation nach 500ms, damit man es nochmal triggern kann
+        setTimeout(() => {
+            nameInput.classList.remove('error-shake');
+            nameInput.focus();
+        }, 500);
+        return; // HIER BRECHEN WIR AB - KEIN UPLOAD!
+    }
+    // -------------------------------------
     
     if (nameInput) {
         nameInput.blur();
@@ -1732,21 +1782,14 @@ window.submitCurrentScore = async function() {
     
     document.body.classList.remove('modal-open');
     
+    // Scroll & Message Logic (wie gehabt)
     setTimeout(() => {
-        // Scroll nur INNERHALB des iFrames
         window.scrollTo(0, 0);
         document.body.scrollTop = 0;
         document.documentElement.scrollTop = 0;
-        
-        // Sende Message an Parent (KEIN direkter Zugriff!)
         if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ 
-                type: 'SCROLL_TO_TOP',
-                source: 'pixeljump'
-            }, '*'); // Oder spezifische Domain statt '*'
+            window.parent.postMessage({ type: 'SCROLL_TO_TOP', source: 'pixeljump' }, '*');
         }
-        
-        console.log('⬆️ Scroll executed, message sent');
     }, 200);
     
     if (saveItem) saveItem.innerHTML = '<span class="menu-cursor">▶</span> SAVING...';
@@ -1763,12 +1806,12 @@ window.submitCurrentScore = async function() {
             }, 700); 
         } else {
             document.body.classList.add('modal-open');
-            if (saveItem) saveItem.innerHTML = '<span class="menu-cursor">▶</span> SAVE SCORE';
+            if (saveItem) saveItem.innerHTML = '<span class="menu-cursor">▶</span> ERROR';
             alert('Failed: ' + result.error);
         }
     } else {
         document.body.classList.add('modal-open');
-        if (saveItem) saveItem.innerHTML = '<span class="menu-cursor">▶</span> SAVE SCORE';
+        if (saveItem) saveItem.innerHTML = '<span class="menu-cursor">▶</span> ERROR';
         alert('Firebase not ready');
     }
 };
@@ -1945,6 +1988,7 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
+
 
 
 
