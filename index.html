@@ -1151,9 +1151,13 @@ canvas{
         <input 
             type="text" 
             id="player-name" 
-            placeholder="PLAYER" 
+            placeholder="@YOUR_INSTA" 
             maxlength="20" 
             value="">
+            
+        <p style="font-size: 0.9rem; color: #ffec27; margin-top: 0.8rem; letter-spacing: 0.5px; line-height: 1.2;">
+            IMPORTANT: USE YOUR INSTAGRAM NAME TO WIN!
+        </p>
     </div>
     
     <div class="menu-container">
@@ -1569,14 +1573,12 @@ function showSubmitModal() {
     openModal();
     const nameInput = document.getElementById('player-name');
 
-    // NEU: Generiere sofort einen Namen und fülle ihn ein
-    nameInput.value = generateRandomName();
+    // WICHTIG: Feld leeren, damit der Placeholder sichtbar ist
+    nameInput.value = ""; 
 
-    // MOBIL-FIX: Fokussiere und wähle den Text automatisch aus
-    // Timeout gibt dem Modal Zeit sich zu öffnen und funktioniert auf Desktop & Mobile
+    // MOBIL-FIX: Fokussiere das Feld automatisch
     setTimeout(() => {
         nameInput.focus();
-        nameInput.select();
     }, 300);
 }
 
@@ -1820,4 +1822,5 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
+
 
