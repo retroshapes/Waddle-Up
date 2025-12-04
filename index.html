@@ -1854,7 +1854,7 @@ window.switchModalTab = function(filter) {
     fetchModalHighscores(filter);
 };
 
-// Lädt Daten aus Firestore (Logik 1:1 von der Hauptseite übernommen)
+// Lädt Daten aus Firestore für das Modal
 async function fetchModalHighscores(filter) {
     try {
         if (!firebase.apps.length) {
@@ -1867,11 +1867,15 @@ async function fetchModalHighscores(filter) {
         // --- FILTER LOGIK ---
         if (filter === 'contest') {
             // XMAS CONTEST ZEITRAUM: 01.12.2025 00:00 bis 05.12.2025 18:00
-            const start = new Date('2025-12-01T00:00:00+01:00').getTime();
-            const end = new Date('2025-12-05T18:00:00+01:00').getTime();
+            // Wir nutzen die numerische Schreibweise für maximale Kompatibilität (Monat 11 = Dezember)
+            const start = new Date(2025, 11, 1, 0, 0, 0).getTime();
+            const end = new Date(2025, 11, 5, 18, 0, 0).getTime();
             
             query = query.where('timestamp', '>=', start)
                          .where('timestamp', '<=', end);
+            
+            // HINWEIS: Wir sortieren hier NICHT per Query, sondern später im Javascript,
+            // um Index-Fehler bei Zeit-Filtern zu vermeiden (genau wie auf der Webseite).
         } 
         else if (filter === 'today') {
             const today = new Date(); 
@@ -1879,14 +1883,12 @@ async function fetchModalHighscores(filter) {
             query = query.where('timestamp', '>=', today.getTime());
         }
         else {
-            // All Time -> Standard Sortierung nach Score
+            // All Time -> Standard Sortierung nach Score in der Datenbank
             query = query.orderBy('score', 'desc');
         }
 
-        // Limitierung (Kein Infinite Scroll im Modal)
-        // Bei Zeit-Filtern laden wir mehr (z.B. 50) und sortieren im Browser,
-        // da Firestore keine Sortierung nach Score erlaubt, wenn nach Zeit gefiltert wird.
-        const limit = filter === 'all-time' ? 20 : 50;
+        // Limitierung (Kein Infinite Scroll im Modal, wir laden genug für die Topliste)
+        const limit = filter === 'all-time' ? 20 : 100; // Bei Contest mehr laden zum Sortieren
         query = query.limit(limit);
 
         const snapshot = await query.get();
@@ -1896,12 +1898,15 @@ async function fetchModalHighscores(filter) {
             scores.push(doc.data());
         });
 
-        // Client-seitige Sortierung für Zeit-Filter (Contest/Today)
+        // --- CLIENT-SEITIGE SORTIERUNG ---
+        // Wenn wir nach Zeit gefiltert haben (Contest oder Today), müssen wir 
+        // die Ergebnisse jetzt manuell nach Punkten sortieren, da Firestore das 
+        // bei Range-Queries nicht immer automatisch kann.
         if (filter !== 'all-time') {
             scores.sort((a, b) => b.score - a.score);
         }
         
-        // Auf Top 15 beschneiden für das Modal
+        // Auf Top 15 beschneiden für die Anzeige im kleinen Modal
         scores = scores.slice(0, 15);
 
         renderModalScores(scores, filter);
@@ -1911,7 +1916,6 @@ async function fetchModalHighscores(filter) {
         document.getElementById('highscore-loading').innerHTML = '<span style="color:#ff004d">LOAD FAILED</span>';
     }
 }
-
 // Rendert die Liste ins HTML
 function renderModalScores(scores, filter) {
     const listEl = document.getElementById('highscore-list');
@@ -1988,6 +1992,7 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
+
 
 
 
