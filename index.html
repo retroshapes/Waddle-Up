@@ -1270,14 +1270,14 @@ canvas{
         </h2>
 
         <div class="modal-tabs-container">
+            <button class="modal-tab" data-filter="contest" onclick="switchModalTab('contest')">
+                🎄 XMAS
+            </button>
             <button class="modal-tab" data-filter="all-time" onclick="switchModalTab('all-time')">
                 ALL TIME
             </button>
             <button class="modal-tab" data-filter="today" onclick="switchModalTab('today')">
                 TODAY
-            </button>
-             <button class="modal-tab" data-filter="contest" onclick="switchModalTab('contest')">
-                🎄 XMAS
             </button>
         </div>
         
@@ -1822,43 +1822,40 @@ window.skipSubmit = function() { hideModal(); };
 let currentModalFilter = 'contest';
 
 // Diese Funktion wird vom Button "SHOW HIGHSCORES" oder GPIO aufgerufen
-// Diese Funktion wird vom Button "SHOW HIGHSCORES" oder GPIO aufgerufen
 window.showHighscores = function() {
     openModal();
     document.getElementById('game-over-view').style.display = 'none';
     document.getElementById('highscore-view').style.display = 'block';
     
-    // ÄNDERUNG: Standardmäßig jetzt ALL TIME öffnen
-    switchModalTab('all-time');
+    // Standardmäßig immer den Contest-Tab öffnen
+    switchModalTab('contest');
 };
 
-// Lädt Daten aus Firestore für das Modal
-async function fetchModalHighscores(filter) {
+// Wechselt den Tab und lädt Daten neu
+window.switchModalTab = function(filter) {
+    currentModalFilter = filter;
+    
+    // UI: Buttons aktualisieren
+    document.querySelectorAll('.modal-tab').forEach(btn => {
+        btn.classList.remove('active');
+        if(btn.dataset.filter === filter) btn.classList.add('active');
+    });
+
+    // UI: Liste leeren & Laden anzeigen
     const listEl = document.getElementById('highscore-list');
     const loadingEl = document.getElementById('highscore-loading');
-
-    // UI Reset
+    
+    listEl.innerHTML = '';
     listEl.style.display = 'none';
     loadingEl.style.display = 'block';
     loadingEl.textContent = 'LOADING...';
 
-    // === NEU: CONTEST TAB LOGIK ===
-    if (filter === 'contest') {
-        loadingEl.style.display = 'none';
-        listEl.style.display = 'block';
-        listEl.innerHTML = `
-            <div style="text-align:center; padding:2rem 0.5rem; color:#fff; line-height:1.4;">
-                <div style="font-size:1.2rem; color:#ffec27; margin-bottom:1rem;">NO ACTIVE CONTEST</div>
-                <div style="font-size:0.8rem; color:#aaa; margin-bottom:0.5rem;">FOLLOW US FOR UPDATES:</div>
-                <a href="https://www.instagram.com/retroshapescom/" target="_blank" style="color:#29adff; text-decoration:underline; font-size:1rem;">
-                    @RETROSHAPESCOM
-                </a>
-            </div>
-        `;
-        return; // Abbruch, keine Datenbankabfrage!
-    }
-    // ==============================
+    // Daten abrufen
+    fetchModalHighscores(filter);
+};
 
+// Lädt Daten aus Firestore für das Modal
+async function fetchModalHighscores(filter) {
     try {
         if (!firebase.apps.length) {
              console.error("Firebase not initialized");
@@ -1868,18 +1865,30 @@ async function fetchModalHighscores(filter) {
         let query = db.collection('highscores');
 
         // --- FILTER LOGIK ---
-        if (filter === 'today') {
+        if (filter === 'contest') {
+            // XMAS CONTEST ZEITRAUM: 01.12.2025 00:00 bis 05.12.2025 18:00
+            // Wir nutzen die numerische Schreibweise für maximale Kompatibilität (Monat 11 = Dezember)
+            const start = new Date(2025, 11, 1, 0, 0, 0).getTime();
+            const end = new Date(2025, 11, 5, 18, 0, 0).getTime();
+            
+            query = query.where('timestamp', '>=', start)
+                         .where('timestamp', '<=', end);
+            
+            // HINWEIS: Wir sortieren hier NICHT per Query, sondern später im Javascript,
+            // um Index-Fehler bei Zeit-Filtern zu vermeiden (genau wie auf der Webseite).
+        } 
+        else if (filter === 'today') {
             const today = new Date(); 
             today.setHours(0, 0, 0, 0);
             query = query.where('timestamp', '>=', today.getTime());
         }
         else {
-            // All Time -> Standard Sortierung nach Score
+            // All Time -> Standard Sortierung nach Score in der Datenbank
             query = query.orderBy('score', 'desc');
         }
 
-        // Limitierung
-        const limit = 20;
+        // Limitierung (Kein Infinite Scroll im Modal, wir laden genug für die Topliste)
+        const limit = filter === 'all-time' ? 20 : 100; // Bei Contest mehr laden zum Sortieren
         query = query.limit(limit);
 
         const snapshot = await query.get();
@@ -1889,18 +1898,22 @@ async function fetchModalHighscores(filter) {
             scores.push(doc.data());
         });
 
-        // Client-seitige Sortierung für Zeitfilter (falls nötig)
+        // --- CLIENT-SEITIGE SORTIERUNG ---
+        // Wenn wir nach Zeit gefiltert haben (Contest oder Today), müssen wir 
+        // die Ergebnisse jetzt manuell nach Punkten sortieren, da Firestore das 
+        // bei Range-Queries nicht immer automatisch kann.
         if (filter !== 'all-time') {
             scores.sort((a, b) => b.score - a.score);
         }
         
+        // Auf Top 15 beschneiden für die Anzeige im kleinen Modal
         scores = scores.slice(0, 15);
 
         renderModalScores(scores, filter);
 
     } catch (error) {
         console.error("Error loading modal scores:", error);
-        loadingEl.innerHTML = '<span style="color:#ff004d">LOAD FAILED</span>';
+        document.getElementById('highscore-loading').innerHTML = '<span style="color:#ff004d">LOAD FAILED</span>';
     }
 }
 // Rendert die Liste ins HTML
@@ -1979,7 +1992,6 @@ function escapeHtml(text) {
 </div> <!-- body_0 -->
 </body>
 </html>
-
 
 
 
