@@ -1007,14 +1007,22 @@
 
         /* Spezieller Style für den Contest Tab */
         .modal-tab[data-filter="contest"] {
-            border-color: #ff004d;
-            color: #ff004d;
+            border-color: #028750;
+            color: #00B644;
+        }
+
+        .modal-tab[data-filter="contest"]:hover {
+            background-color: #028750;
+            color: #fff;
+            border-color: #00B644;
         }
 
         .modal-tab[data-filter="contest"].active {
-            background-color: #ff004d;
+            background-color: #00B644;
             color: #fff;
             border-color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.5);
         }
 
         /* Highscore Liste Anpassung für Tabs */
@@ -1872,131 +1880,120 @@
                     document.getElementById('game-over-view').style.display = 'none';
                     document.getElementById('highscore-view').style.display = 'block';
 
-                    // Standardmäßig immer den All-Time-Tab öffnen
-                    switchModalTab('all-time');
-                };
-
-                // Wechselt den Tab und lädt Daten neu
-                window.switchModalTab = function (filter) {
-                    currentModalFilter = filter;
-
-                    // UI: Buttons aktualisieren
-                    document.querySelectorAll('.modal-tab').forEach(btn => {
-                        btn.classList.remove('active');
-                        if (btn.dataset.filter === filter) btn.classList.add('active');
-                    });
-
-                    // UI: Liste leeren & Laden anzeigen
-                    const listEl = document.getElementById('highscore-list');
-                    const loadingEl = document.getElementById('highscore-loading');
-
-                    listEl.innerHTML = '';
-                    listEl.style.display = 'none';
-                    loadingEl.style.display = 'block';
-                    loadingEl.textContent = 'LOADING...';
-
-                    // Daten abrufen
-                    fetchModalHighscores(filter);
-                };
-
-                // Lädt Daten aus Firestore für das Modal
-                async function fetchModalHighscores(filter) {
-                    try {
-                        if (!firebase.apps.length) {
-                            console.error("Firebase not initialized");
-                            return;
-                        }
-                        const db = firebase.firestore();
-                        let query = db.collection('highscores');
-
-                        // --- FILTER LOGIK ---
-                        if (filter === 'contest') {
-                            // XMAS CONTEST ZEITRAUM: 01.12.2025 00:00 bis 05.12.2025 18:00
-                            // Wir nutzen die numerische Schreibweise für maximale Kompatibilität (Monat 11 = Dezember)
-                            const start = new Date(2025, 11, 1, 0, 0, 0).getTime();
-                            const end = new Date(2025, 11, 5, 18, 0, 0).getTime();
-
-                            query = query.where('timestamp', '>=', start)
-                                .where('timestamp', '<=', end);
-
-                            // HINWEIS: Wir sortieren hier NICHT per Query, sondern später im Javascript,
-                            // um Index-Fehler bei Zeit-Filtern zu vermeiden (genau wie auf der Webseite).
-                        }
-                        else if (filter === 'today') {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            query = query.where('timestamp', '>=', today.getTime());
-                        }
-                        else {
-                            // All Time -> Standard Sortierung nach Score in der Datenbank
-                            query = query.orderBy('score', 'desc');
-                        }
-
-                        // Limitierung (Kein Infinite Scroll im Modal, wir laden genug für die Topliste)
-                        const limit = filter === 'all-time' ? 20 : 100; // Bei Contest mehr laden zum Sortieren
-                        query = query.limit(limit);
-
-                        const snapshot = await query.get();
-                        let scores = [];
-
-                        snapshot.forEach(doc => {
-                            scores.push(doc.data());
-                        });
-
-                        // --- CLIENT-SEITIGE SORTIERUNG ---
-                        // Wenn wir nach Zeit gefiltert haben (Contest oder Today), müssen wir 
-                        // die Ergebnisse jetzt manuell nach Punkten sortieren, da Firestore das 
-                        // bei Range-Queries nicht immer automatisch kann.
-                        if (filter !== 'all-time') {
-                            scores.sort((a, b) => b.score - a.score);
-                        }
-
-                        // Auf Top 15 beschneiden für die Anzeige im kleinen Modal
-                        scores = scores.slice(0, 15);
-
-                        renderModalScores(scores, filter);
-
-                    } catch (error) {
-                        console.error("Error loading modal scores:", error);
-                        document.getElementById('highscore-loading').innerHTML = '<span style="color:#ff004d">LOAD FAILED</span>';
-                    }
+                    // Standardmäßig immer den Contest-Tab öffnen
+                    switchModalTab('contest');
+		                };
+		
+		                // Wechselt den Tab und lädt Daten neu
+		                window.switchModalTab = function (filter) {
+		                    currentModalFilter = filter;
+		
+		                    // UI: Buttons aktualisieren
+		                    document.querySelectorAll('.modal-tab').forEach(btn => {
+		                        btn.classList.remove('active');
+		                        if (btn.dataset.filter === filter) btn.classList.add('active');
+		                    });
+		
+		                    // UI: Liste leeren & Laden anzeigen
+		                    const listEl = document.getElementById('highscore-list');
+		                    const loadingEl = document.getElementById('highscore-loading');
+		
+		                    listEl.innerHTML = '';
+		                    listEl.style.display = 'none';
+		                    loadingEl.style.display = 'block';
+		                    loadingEl.textContent = 'LOADING...';
+		
+		                    // Daten abrufen
+		                    fetchModalHighscores(filter);
+		                };
+		
+		                // Lädt Daten aus Firestore für das Modal
+		                async function fetchModalHighscores(filter) {
+		                    try {
+		                        if (!firebase.apps.length) {
+		                            console.error("Firebase not initialized");
+		                            return;
+		                        }
+		                        const db = firebase.firestore();
+		                        let query = db.collection('highscores');
+		
+		                        // --- FILTER LOGIK ---
+		                        if (filter === 'contest') {
+		                            // 420 CONTEST ZEITRAUM: 20.04.2026 00:00 bis 27.04.2026 23:59:59
+		                            // Wir nutzen die numerische Schreibweise für maximale Kompatibilität (Monat 3 = April)
+		                            const start = new Date(2026, 3, 20, 0, 0, 0).getTime();
+		                            const end = new Date(2026, 3, 27, 23, 59, 59, 999).getTime();
+		
+		                            query = query.where('timestamp', '>=', start)
+		                                         .where('timestamp', '<=', end);
+		                        }
+		                        else if (filter === 'today') {
+		                            const today = new Date();
+		                            today.setHours(0, 0, 0, 0);
+		                            query = query.where('timestamp', '>=', today.getTime());
+		                        }
+		                        else {
+		                            // All Time -> Standard Sortierung nach Score in der Datenbank
+		                            query = query.orderBy('score', 'desc');
+		                        }
+		
+		                        // Limitierung (Kein Infinite Scroll im Modal, wir laden genug für die Topliste)
+		                        const limit = filter === 'all-time' ? 20 : 100; // Bei Contest mehr laden zum Sortieren
+		                        query = query.limit(limit);
+		
+		                        const snapshot = await query.get();
+		                        let scores = [];
+		
+		                        snapshot.forEach(doc => {
+		                            scores.push(doc.data());
+		                        });
+		
+		                        // --- CLIENT-SEITIGE SORTIERUNG ---
+		                        if (filter !== 'all-time') {
+		                            scores.sort((a, b) => b.score - a.score);
+		                        }
+		
+		                        // Auf Top 15 beschneiden für die Anzeige im kleinen Modal
+		                        scores = scores.slice(0, 15);
+		
+		                        renderModalScores(scores, filter);
+		
+		                    } catch (error) {
+		                        console.error("Error loading modal scores:", error);
+		                        document.getElementById('highscore-loading').innerHTML = '<span style="color:#ff004d">LOAD FAILED</span>';
+		                    }
+		                }
+		                
+		                // Rendert die Liste ins HTML
+		                function renderModalScores(scores, filter) {
+		                    const listEl = document.getElementById('highscore-list');
+		                    const loadingEl = document.getElementById('highscore-loading');
+		
+		                    loadingEl.style.display = 'none';
+		                    listEl.style.display = 'block';
+		
+		                    if (scores.length === 0) {
+		                        listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:#fff;">NO SCORES YET</div>';
+		                        return;
+		                    }
+		
+		                    let html = '';
+		                    scores.forEach((entry, index) => {
+		                        const rank = index + 1;
+		                        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+		                        const rowClass = rank <= 3 ? 'top-3' : '';
+		
+		                        html += `
+		            <div class="highscore-entry ${rowClass}">
+		                <span class="highscore-rank">${medal} #${rank}</span>
+		                <span class="highscore-name">${escapeHtml(entry.name).toUpperCase()}</span>
+		                <span class="highscore-score">${entry.score.toLocaleString()}</span>
+		            </div>
+		        `;
+		                    });
+		
+		                    listEl.innerHTML = html;
                 }
-                // Rendert die Liste ins HTML
-                function renderModalScores(scores, filter) {
-                    const listEl = document.getElementById('highscore-list');
-                    const loadingEl = document.getElementById('highscore-loading');
-
-                    loadingEl.style.display = 'none';
-                    listEl.style.display = 'block';
-
-                    if (filter === 'contest') {
-                        listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:#fff; line-height:1.5;">CURRENTLY NO CONTEST<br><br>FOLLOW ON INSTAGRAM FOR UPDATES<br><a href="https://www.instagram.com/retroshapescom/" target="_blank" style="color:#29adff; text-decoration:underline;">@RETROSHAPESCOM</a></div>';
-                        return;
-                    }
-
-                    if (scores.length === 0) {
-                        listEl.innerHTML = '<div style="text-align:center; padding:2rem; color:#fff;">NO SCORES YET</div>';
-                        return;
-                    }
-
-                    let html = '';
-                    scores.forEach((entry, index) => {
-                        const rank = index + 1;
-                        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
-                        const rowClass = rank <= 3 ? 'top-3' : '';
-
-                        html += `
-            <div class="highscore-entry ${rowClass}">
-                <span class="highscore-rank">${medal} #${rank}</span>
-                <span class="highscore-name">${escapeHtml(entry.name).toUpperCase()}</span>
-                <span class="highscore-score">${entry.score.toLocaleString()}</span>
-            </div>
-        `;
-                    });
-
-                    listEl.innerHTML = html;
-                }
-
                 // Zeigt die Scores an (kann jetzt Scores an die Liste anhängen)
                 function displayHighscores(scores, append = false) {
                     const listEl = document.getElementById('highscore-list');
