@@ -1255,16 +1255,22 @@
                 </h2>
 
                 <div class="modal-tabs-container">
-                    <button class="modal-tab" data-filter="all-time" onclick="switchModalTab('all-time')">
-                        ALL TIME
-                    </button>
-                    <button class="modal-tab" data-filter="today" onclick="switchModalTab('today')">
-                        TODAY
-                    </button>
-                    <button class="modal-tab" data-filter="contest" onclick="switchModalTab('contest')">
-                        CONTEST
-                    </button>
-                </div>
+    <button class="modal-tab" data-filter="all-time" onclick="switchModalTab('all-time')">
+        ALL TIME
+    </button>
+    <button class="modal-tab" data-filter="today" onclick="switchModalTab('today')">
+        TODAY
+    </button>
+    <button class="modal-tab" data-filter="week" onclick="switchModalTab('week')">
+        WEEK
+    </button>
+    <button class="modal-tab" data-filter="month" onclick="switchModalTab('month')">
+        MONTH
+    </button>
+    <button class="modal-tab" data-filter="contest" onclick="switchModalTab('contest')">
+        CONTEST
+    </button>
+</div>
 
                 <div id="highscore-list" style="display:none;">
                 </div>
@@ -1872,40 +1878,135 @@
                 window.skipSubmit = function () { hideModal(); };
                 // --- NEUE HIGHSCORE LOGIK FÜR DAS MODAL ---
 
-                let currentModalFilter = 'contest';
+                let currentModalFilter = 'all-time';
 
-                // Diese Funktion wird vom Button "SHOW HIGHSCORES" oder GPIO aufgerufen
-                window.showHighscores = function () {
-                    openModal();
-                    document.getElementById('game-over-view').style.display = 'none';
-                    document.getElementById('highscore-view').style.display = 'block';
+                showHighscores = function () {
+    openModal();
+    document.getElementById('game-over-view').style.display = 'none';
+    document.getElementById('highscore-view').style.display = 'block';
 
-                    // Standardmäßig immer den Contest-Tab öffnen
-                    switchModalTab('contest');
-		                };
-		
-		                // Wechselt den Tab und lädt Daten neu
-		                window.switchModalTab = function (filter) {
-		                    currentModalFilter = filter;
-		
-		                    // UI: Buttons aktualisieren
-		                    document.querySelectorAll('.modal-tab').forEach(btn => {
-		                        btn.classList.remove('active');
-		                        if (btn.dataset.filter === filter) btn.classList.add('active');
-		                    });
-		
-		                    // UI: Liste leeren & Laden anzeigen
-		                    const listEl = document.getElementById('highscore-list');
-		                    const loadingEl = document.getElementById('highscore-loading');
-		
-		                    listEl.innerHTML = '';
-		                    listEl.style.display = 'none';
-		                    loadingEl.style.display = 'block';
-		                    loadingEl.textContent = 'LOADING...';
-		
-		                    // Daten abrufen
-		                    fetchModalHighscores(filter);
-		                };
+    // Standardmäßig All Time öffnen
+    switchModalTab('all-time');
+};
+
+// Wechselt den Tab und lädt Daten neu
+window.switchModalTab = function (filter) {
+    currentModalFilter = filter;
+
+    // UI: Buttons aktualisieren
+    document.querySelectorAll('.modal-tab').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.filter === filter) btn.classList.add('active');
+    });
+
+    // UI: Liste leeren & Laden anzeigen
+    const listEl = document.getElementById('highscore-list');
+    const loadingEl = document.getElementById('highscore-loading');
+
+    listEl.innerHTML = '';
+    listEl.style.display = 'none';
+    loadingEl.style.display = 'block';
+    loadingEl.textContent = 'LOADING...';
+
+    fetchModalHighscores(filter);
+};
+
+function getModalStartTimestamp(filter) {
+    const date = new Date();
+
+    if (filter === 'today') {
+        date.setHours(0, 0, 0, 0);
+        return date.getTime();
+    }
+
+    if (filter === 'week') {
+        date.setDate(date.getDate() - 7);
+        date.setHours(0, 0, 0, 0);
+        return date.getTime();
+    }
+
+    if (filter === 'month') {
+        date.setDate(date.getDate() - 30);
+        date.setHours(0, 0, 0, 0);
+        return date.getTime();
+    }
+
+    return null;
+}
+
+// Lädt Daten aus Firestore für das Modal
+async function fetchModalHighscores(filter) {
+    try {
+        if (!firebase.apps.length) {
+            console.error("Firebase not initialized");
+            return;
+        }
+
+        const db = firebase.firestore();
+        let query = db.collection('highscores');
+
+        // --- FILTER LOGIK ---
+        if (filter === 'contest') {
+            // 420 CONTEST ZEITRAUM: 20.04.2026 00:00 bis 27.04.2026 23:59:59
+            const start = new Date(2026, 3, 20, 0, 0, 0).getTime();
+            const end = new Date(2026, 3, 27, 23, 59, 59, 999).getTime();
+
+            query = query
+                .where('timestamp', '>=', start)
+                .where('timestamp', '<=', end);
+        } else {
+            const startTimestamp = getModalStartTimestamp(filter);
+
+            if (startTimestamp) {
+                query = query.where('timestamp', '>=', startTimestamp);
+            }
+        }
+
+        // Sortierung
+        if (filter === 'all-time') {
+            query = query.orderBy('score', 'desc');
+        } else {
+            query = query.orderBy('timestamp', 'desc');
+        }
+
+        // Im Modal nur Topliste laden
+        const limit = filter === 'all-time' ? 20 : 300;
+        query = query.limit(limit);
+
+        const snapshot = await query.get();
+        let scores = [];
+
+        snapshot.forEach(doc => {
+            scores.push(doc.data());
+        });
+
+        // Änni/Aenni ausblenden
+        scores = scores.filter(entry => {
+            const nameLower = String(entry.name || '').toLowerCase();
+            return !nameLower.includes('änni') && !nameLower.includes('aenni');
+        });
+
+        // Zeitfilter/Contest clientseitig nach Score sortieren
+        if (filter !== 'all-time') {
+            scores.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+        }
+
+        // Top 15 im Modal anzeigen
+        scores = scores.slice(0, 15);
+
+        renderModalScores(scores, filter);
+
+    } catch (error) {
+        console.error('Error loading modal scores:', error);
+
+        const loadingEl = document.getElementById('highscore-loading');
+        const listEl = document.getElementById('highscore-list');
+
+        listEl.style.display = 'none';
+        loadingEl.style.display = 'block';
+        loadingEl.innerHTML = '<span style="color:#ff004d;">ERROR LOADING SCORES</span>';
+    }
+}
 		
 		                // Lädt Daten aus Firestore für das Modal
 		                async function fetchModalHighscores(filter) {
