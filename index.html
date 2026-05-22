@@ -1912,100 +1912,99 @@ window.switchModalTab = function (filter) {
 };
 
 function getModalStartTimestamp(filter) {
-    const date = new Date();
+  const date = new Date();
 
-    if (filter === 'today') {
-        date.setHours(0, 0, 0, 0);
-        return date.getTime();
-    }
-
-    if (filter === 'week') {
-        date.setDate(date.getDate() - 7);
-        date.setHours(0, 0, 0, 0);
-        return date.getTime();
-    }
-
-    if (filter === 'month') {
-        date.setDate(date.getDate() - 30);
-        date.setHours(0, 0, 0, 0);
-        return date.getTime();
-    }
-
+  if (filter === 'today') {
+    date.setHours(0, 0, 0, 0);
+  } else if (filter === 'week') {
+    date.setDate(date.getDate() - 7);
+    date.setHours(0, 0, 0, 0);
+  } else if (filter === 'month') {
+    date.setDate(date.getDate() - 30);
+    date.setHours(0, 0, 0, 0);
+  } else {
     return null;
+  }
+
+  return firebase.firestore.Timestamp.fromDate(date);
 }
 
 // Lädt Daten aus Firestore für das Modal
-async function fetchModalHighscores(filter) {
-    try {
-        if (!firebase.apps.length) {
-            console.error("Firebase not initialized");
-            return;
-        }
+async function fetchModalHighscores(filter = 'all-time') {
+  const list = document.getElementById('highscore-list');
+  const loading = document.getElementById('highscore-loading');
 
-        const db = firebase.firestore();
-        let query = db.collection('highscores');
+  if (!list || !loading) return;
 
-        // --- FILTER LOGIK ---
-        if (filter === 'contest') {
-            // 420 CONTEST ZEITRAUM: 20.04.2026 00:00 bis 27.04.2026 23:59:59
-            const start = new Date(2026, 3, 20, 0, 0, 0).getTime();
-            const end = new Date(2026, 3, 27, 23, 59, 59, 999).getTime();
+  list.style.display = 'none';
+  loading.style.display = 'block';
+  loading.textContent = 'LOADING...';
 
-            query = query
-                .where('timestamp', '>=', start)
-                .where('timestamp', '<=', end);
-        } else {
-            const startTimestamp = getModalStartTimestamp(filter);
+  try {
+    let query = db.collection('highscores');
 
-            if (startTimestamp) {
-                query = query.where('timestamp', '>=', startTimestamp);
-            }
-        }
+    const startTimestamp = getModalStartTimestamp(filter);
 
-        // Sortierung
-        if (filter === 'all-time') {
-            query = query.orderBy('score', 'desc');
-        } else {
-            query = query.orderBy('timestamp', 'desc');
-        }
-
-        // Im Modal nur Topliste laden
-        const limit = filter === 'all-time' ? 20 : 300;
-        query = query.limit(limit);
-
-        const snapshot = await query.get();
-        let scores = [];
-
-        snapshot.forEach(doc => {
-            scores.push(doc.data());
-        });
-
-        // Änni/Aenni ausblenden
-        scores = scores.filter(entry => {
-            const nameLower = String(entry.name || '').toLowerCase();
-            return !nameLower.includes('änni') && !nameLower.includes('aenni');
-        });
-
-        // Zeitfilter/Contest clientseitig nach Score sortieren
-        if (filter !== 'all-time') {
-            scores.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
-        }
-
-        // Top 15 im Modal anzeigen
-        scores = scores.slice(0, 15);
-
-        renderModalScores(scores, filter);
-
-    } catch (error) {
-        console.error('Error loading modal scores:', error);
-
-        const loadingEl = document.getElementById('highscore-loading');
-        const listEl = document.getElementById('highscore-list');
-
-        listEl.style.display = 'none';
-        loadingEl.style.display = 'block';
-        loadingEl.innerHTML = '<span style="color:#ff004d;">ERROR LOADING SCORES</span>';
+    if (startTimestamp) {
+      query = query.where('timestamp', '>=', startTimestamp);
     }
+
+    if (filter === 'all-time') {
+      query = query.orderBy('score', 'desc');
+    } else {
+      query = query.orderBy('timestamp', 'desc');
+    }
+
+    const snapshot = await query.limit(100).get();
+
+    let scores = [];
+
+    snapshot.forEach(doc => {
+      const data = doc.data();
+
+      scores.push({
+        name: data.name || 'UNKNOWN',
+        score: Number(data.score || 0),
+        timestamp: data.timestamp || null
+      });
+    });
+
+    // Bei Today/Week/Month nach Score sortieren,
+    // weil Firestore wegen timestamp-filter erst nach timestamp sortiert.
+    if (filter !== 'all-time') {
+      scores.sort((a, b) => b.score - a.score);
+    }
+
+    list.innerHTML = '';
+
+    if (scores.length === 0) {
+      list.innerHTML = `
+        <div style="text-align:center; color:#5f574f; padding:1rem;">
+          NO SCORES
+        </div>
+      `;
+    } else {
+      scores.slice(0, 20).forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'highscore-row';
+
+        row.innerHTML = `
+          <span class="highscore-rank">#${index + 1}</span>
+          <span class="highscore-name">${escapeHtml(item.name)}</span>
+          <span class="highscore-score">${item.score.toLocaleString()}</span>
+        `;
+
+        list.appendChild(row);
+      });
+    }
+
+    loading.style.display = 'none';
+    list.style.display = 'block';
+
+  } catch (error) {
+    console.error('Highscore error:', error);
+    loading.innerHTML = '<span style="color:#ff004d;">ERROR LOADING SCORES</span>';
+  }
 }
 		
 		                // Lädt Daten aus Firestore für das Modal
