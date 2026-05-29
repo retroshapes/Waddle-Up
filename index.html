@@ -1922,11 +1922,31 @@ function getModalStartTimestamp(filter) {
   } else if (filter === 'month') {
     date.setDate(date.getDate() - 30);
     date.setHours(0, 0, 0, 0);
+  } else if (filter === 'contest') {
+    date.setFullYear(2026, 3, 20);
+    date.setHours(0, 0, 0, 0);
   } else {
     return null;
   }
 
-  return firebase.firestore.Timestamp.fromDate(date);
+  return date.getTime();
+}
+
+function getModalEndTimestamp(filter) {
+  if (filter !== 'contest') return null;
+  return new Date(2026, 3, 27, 23, 59, 59, 999).getTime();
+}
+
+function getEntryTimestamp(entry) {
+  const ts = entry.timestamp || entry.createdAt || entry.created_at;
+
+  if (!ts) return 0;
+  if (typeof ts === 'number') return ts;
+  if (ts.toMillis) return ts.toMillis();
+  if (ts.seconds) return ts.seconds * 1000;
+
+  const parsed = Date.parse(ts);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 async function fetchModalHighscores(filter = 'all-time') {
@@ -1939,28 +1959,9 @@ async function fetchModalHighscores(filter = 'all-time') {
     const db = firebase.firestore();
     let query = db.collection('highscores');
 
-    if (filter === 'contest') {
-      const start = firebase.firestore.Timestamp.fromDate(new Date(2026, 3, 20, 0, 0, 0));
-      const end = firebase.firestore.Timestamp.fromDate(new Date(2026, 3, 27, 23, 59, 59, 999));
+    query = query.orderBy('score', 'desc');
 
-      query = query
-        .where('timestamp', '>=', start)
-        .where('timestamp', '<=', end)
-        .orderBy('timestamp', 'desc');
-
-    } else {
-      const startTimestamp = getModalStartTimestamp(filter);
-
-      if (startTimestamp) {
-        query = query
-          .where('timestamp', '>=', startTimestamp)
-          .orderBy('timestamp', 'desc');
-      } else {
-        query = query.orderBy('score', 'desc');
-      }
-    }
-
-    query = query.limit(filter === 'all-time' ? 20 : 300);
+    query = query.limit(filter === 'all-time' ? 20 : 500);
 
     const snapshot = await query.get();
     let scores = [];
@@ -1970,6 +1971,14 @@ async function fetchModalHighscores(filter = 'all-time') {
     });
 
     if (filter !== 'all-time') {
+      const startTimestamp = getModalStartTimestamp(filter);
+      const endTimestamp = getModalEndTimestamp(filter);
+      scores = scores.filter(entry => {
+        const ts = getEntryTimestamp(entry);
+        if (ts < startTimestamp) return false;
+        if (endTimestamp && ts > endTimestamp) return false;
+        return true;
+      });
       scores.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
     }
 
